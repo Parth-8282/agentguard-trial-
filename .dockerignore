@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# Python virtual environment and cache
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Node modules and build artifacts
+**/node_modules
+**/.next
+**/npm-debug.log*
+
+# Environment and secrets (injected via EC2 runtime env or docker compose)
+**/.env.local
+**/.env*.local
+
+# IDE and OS files
+**/.vscode
+**/.idea
+**/.DS_Store
+Thumbs.db

@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # --------------------------------------------------------------------------
+  # Redis: Real-Time State Engine, Sliding-Window Velocity & Idempotency Cache
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: payshield-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Apache Kafka: Event-Driven Multi-Agent Backbone (KRaft Mode, No Zookeeper)
+  # --------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: payshield-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+
+  # --------------------------------------------------------------------------
+  # AgentGuard: Real Multi-Agent AI System (AML, Mule, Txn, Velocity, Behavior)
+  # --------------------------------------------------------------------------
+  agentguard:
+    build:
+      context: ./"agentguard_full (1)"/agentguard
+      dockerfile: Dockerfile
+    container_name: payshield-agentguard
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REDIS_URL: redis://redis:6379/0
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-AQ.Ab8RN6KnT_J4kWiEqo-EULU7wzvPyIpdxmzHuaP5go2TrO8MXA}
+      AG_GEMINI_MODEL: gemini-3.8-flash
+      AG_DEV: 0
+      MONGODB_URI: ${MONGODB_URI}
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  # --------------------------------------------------------------------------
+  # PayShield: Frozen Frontend UI/UX & Real-Time Sentinel Gateway
+  # --------------------------------------------------------------------------
+  payshield:
+    build:
+      context: ./"agentguard_full (1)"/Agent-Guard-Frontend
+      dockerfile: Dockerfile
+    container_name: payshield-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      VITE_AGENTGUARD_API_URL: http://localhost:8000
+      VITE_AGENTGUARD_WS_URL: ws://localhost:8000
+      MONGODB_URI: ${MONGODB_URI}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_TlHAa8NfSdwwZr}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-HOBQHKX2Z57vq2ELcrx8vtp1}
+    depends_on:
+      - agentguard
+
+volumes:
+  redis-data:
+  kafka-data:
